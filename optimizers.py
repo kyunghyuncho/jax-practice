@@ -12,7 +12,7 @@ class SGD:
         apply_dict(lambda g, p: p - self.lr * g, grad, self.model.params)
                 
 class Adam:
-    def __init__(self, model, lr=0.01, betas=(0.9, 0.999), eps=1e-8):
+    def __init__(self, model, lr=0.001, betas=(0.9, 0.999), eps=1e-6):
         self.model = model
         
         self.lr = lr

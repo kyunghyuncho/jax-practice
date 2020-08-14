@@ -80,7 +80,7 @@ class Conv2d(Layer):
     
     def init_params(self, rng):
         rng, self.weight = split_and_sample(rng, self.weight.shape)
-        self.weight = self.weight * (1./jnp.sqrt(self.weight.shape[1]))
+        self.weight = self.weight * (1./jnp.sqrt(self.weight.shape[1]*self.weight.shape[2]*self.weight.shape[3]))
         return rng, self.params()
     
     def forward(self, p, x):

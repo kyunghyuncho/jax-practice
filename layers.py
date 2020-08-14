@@ -2,6 +2,7 @@ import numpy
 
 from jax import random as jrng
 from jax import numpy as jnp
+import jax.experimental.stax as jexp
 import jax
 
 from jax import lax
@@ -89,6 +90,18 @@ class Conv2d(Layer):
         if len(x.shape) < len(p['weight'].shape):
             x = jnp.expand_dims(x, 0)
         return lax.conv(x, p['weight'], (1,1), self.mode) + p['bias'][None,:,None,None]
+    
+class MaxPool2d(Layer):
+    def __init__(self, kw, kh, name=None):
+        super(MaxPool2d, self).__init__(name)
+        
+        _, self.maxpool = jexp.MaxPool((kw, kh))
+        
+        if name is None:
+            self.name = F'MaxPool2d+{rand_string()}'
+        
+    def forward(self, p, x):
+        return jnp.transpose(self.maxpool(None, jnp.transpose(x, [0, 2, 3, 1])), [0, 3, 1, 2])
     
 class SpatialPool2d(Layer):
     def __init__(self, name=None):

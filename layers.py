@@ -63,7 +63,7 @@ class Linear(Layer):
     
     
 class Conv2d(Layer):
-    def __init__(self, k_height, k_width, d_in, d_out, name=None):
+    def __init__(self, k_height, k_width, d_in, d_out, name=None, mode="SAME"):
         super(Conv2d, self).__init__(name)
         
         if k_height is None:
@@ -71,6 +71,8 @@ class Conv2d(Layer):
         
         self.weight = jnp.zeros((d_out, d_in, k_height, k_width))
         self.bias = jnp.zeros((d_out))
+        
+        self.mode = mode
         
         if name is None:
             self.name = F'Conv2d+{rand_string()}'
@@ -86,7 +88,7 @@ class Conv2d(Layer):
     def forward(self, p, x):
         if len(x.shape) < len(p['weight'].shape):
             x = jnp.expand_dims(x, 0)
-        return lax.conv(x, p['weight'], (1,1), 'SAME')# + p['bias'][None,:,None,None]
+        return lax.conv(x, p['weight'], (1,1), self.mode) + p['bias'][None,:,None,None]
     
 class SpatialPool2d(Layer):
     def __init__(self, name=None):

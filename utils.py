@@ -1,4 +1,5 @@
 from jax import random as jrng
+import jax
 
 import random
 import string
@@ -12,3 +13,9 @@ def split_and_sample(key, shape):
     val = jrng.normal(subkey, shape=shape)
     return key, val
 
+def apply_dict(func, from_, to_):
+    for kk, vv in to_.items():
+        if type(vv) == dict:
+            apply_dict(func, from_[kk], vv)
+        else:
+            to_[kk] = func(from_[kk], to_[kk])

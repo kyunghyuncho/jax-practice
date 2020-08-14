@@ -29,3 +29,12 @@ def flatten_dict(item_func, dict_):
             items.append(item_func(vv))
     return items
 
+def map_dict(item_func, dict_):
+    for kk, vv in dict_.items():
+        if type(vv) == dict:
+            map_dict(item_func, vv)
+        else:
+            dict_[kk] = item_func(vv)
+    return dict_
+    
+

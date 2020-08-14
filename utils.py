@@ -19,3 +19,13 @@ def apply_dict(func, from_, to_):
             apply_dict(func, from_[kk], vv)
         else:
             to_[kk] = func(from_[kk], to_[kk])
+
+def flatten_dict(item_func, dict_):
+    items = []
+    for kk, vv in dict_.items():
+        if type(vv) == dict:
+            items = items + flatten_dict(item_func, vv)
+        else:
+            items.append(item_func(vv))
+    return items
+

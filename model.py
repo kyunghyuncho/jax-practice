@@ -39,7 +39,7 @@ class Model:
         def dummy(mymodel, params, x, y):
             total_l = 0.
             for ll in mymodel.loss:
-                total_l = total_l + ll[1] * ll[0](x, y)
+                total_l = total_l + ll[1] * ll[0](params, x, y)
             return total_l
         return jax.vmap(dummy, in_axes=(None,None,0,0))(self, self.params, self.forward_(p, x), y).mean()
     

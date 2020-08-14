@@ -86,7 +86,6 @@ class Conv2d(Layer):
     def forward(self, p, x):
         if len(x.shape) < len(p['weight'].shape):
             x = jnp.expand_dims(x, 0)
-#         print(self.name, x.shape, p['weight'].shape)
         return lax.conv(x, p['weight'], (1,1), 'SAME')# + p['bias'][None,:,None,None]
     
 class SpatialPool2d(Layer):

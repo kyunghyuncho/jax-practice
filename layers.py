@@ -154,48 +154,11 @@ class LayerNorm(Layer):
     def params(self):
         return dict([('alpha', self.alpha), ('gamma', self.gamma)])
         
-#     @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
         mu = x.mean(self.normalized_dim, keepdims=True)
         var = x.var(self.normalized_dim, keepdims=True)
         return (x - mu) / (jnp.sqrt(var) + 1e-6) * p['gamma'] + p['alpha']    
-
-class BatchNorm(Layer):
-    def __init__(self, dim, coeff=0.95, name=None):
-        super(BatchNorm, self).__init__(name)
-        
-        self.mu = jnp.zeros((dim))
-        self.var = jnp.ones((dim))
-        self.alpha = jnp.zeros((dim))
-        self.gamma = jnp.ones((dim))
-        
-        self.coeff = coeff
-        
-        if name is None:
-            self.name = F'BatchNorm+{rand_string()}'
-            
-    def buffers(self):
-        return dict({'mu': self.mu, 'var': self.var})
-    
-    def params(self):
-        return dict({'alpha': self.alpha, 'gamma': self.gamma})
-    
-    def forward(self, p, b, x):
-        x_ = x
-        mu = x_.mean(0)
-        var = x_.var(0)
-        x_ = (x_ - mu)/(jnp.sqrt(var) + 1e-6) * p['gamma'] + p['alpha']
-        
-        b['mu'] = self.coeff * b['mu'] + (1.-self.coeff) * mu
-        b['var'] = self.coeff * b['var'] + (1.-self.coeff) * var
-        
-        return x_
-    
-    def forward_eval(self, p, b, x):
-        x_ = x
-        x_ = (x_ - b['mu'])/(jnp.sqrt(b['var']) + 1e-6) * p['gamma'] + p['alpha']
-        
-        return x_
 
 class BatchNorm2d(Layer):
     def __init__(self, dim, coeff=0.95, name=None):
@@ -217,6 +180,7 @@ class BatchNorm2d(Layer):
     def params(self):
         return dict({'alpha': self.alpha, 'gamma': self.gamma})
     
+    @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
         x_ = jnp.transpose(x, [0, 2, 3, 1]).reshape(-1, x.shape[1])
         mu = x_.mean(0)
@@ -230,6 +194,7 @@ class BatchNorm2d(Layer):
         
         return x_, new_b
     
+    @partial(jax.jit, static_argnums=(0,))
     def forward_eval(self, p, b, x):
         x_ = jnp.transpose(x, [0, 2, 3, 1]).reshape(-1, x.shape[1])
         x_ = (x_ - b['mu'])/(jnp.sqrt(b['var']) + 1e-6) * p['gamma'] + p['alpha']
@@ -247,7 +212,7 @@ class MaxPool2d(Layer):
         if name is None:
             self.name = F'MaxPool2d+{rand_string()}'
         
-#     @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
         return jnp.transpose(self.maxpool(None, jnp.transpose(x, [0, 2, 3, 1])), [0, 3, 1, 2])
     
@@ -258,7 +223,7 @@ class SpatialPool2d(Layer):
         if name is None:
             self.name = F'SpatialPool2d+{rand_string()}'
         
-#     @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
         return x.max(-1).max(-1)
     
@@ -269,7 +234,7 @@ class Tanh(Layer):
         if name is None:
             self.name = F'Tanh+{rand_string()}'
             
-#     @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
         return jnp.tanh(x)
     
@@ -280,7 +245,7 @@ class ReLU(Layer):
         if name is None:
             self.name = F'ReLU+{rand_string()}'
             
-#     @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
         return jnp.maximum(0., x)
     
@@ -293,7 +258,7 @@ class LeakyReLU(Layer):
         if name is None:
             self.name = F'PReLU+{rand_string()}'
         
-#     @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
         return jnp.maximum(0., x) - self.alpha * jnp.maximum(0., -x)
     
@@ -304,7 +269,7 @@ class Softmax(Layer):
         if name is None:
             self.name = F'Softmax+{rand_string()}'
             
-#     @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
         x_exp = jnp.exp(x)
         return x_exp / jnp.sum(x_exp)

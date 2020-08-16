@@ -6,12 +6,16 @@ import jax
 
 from functools import partial
 
-from utils import rand_string, split_and_sample
+from utils import rand_string, split_and_sample, apply_dict
 
 class Model:
-    def __init__(self, rng, layers, loss=None, name=None):        
+    def __init__(self, rng, layers, loss=None, name=None, devices=None):
         if name is None:
             name = F'Model+{rand_string()}'
+            
+        if devices is None:
+            devices = jax.devices()
+        self.devices = devices
             
         self.layers = layers
         
@@ -21,37 +25,107 @@ class Model:
             self.loss = loss
             
         self.params = dict()
+        self.buffers = dict()
+
         for ll in self.layers:
             rng, pp = ll.init_params(rng)
             if pp is not None:
                 self.params[ll.name] = pp
-
-        self.loss_grad_ = jax.grad(self.loss_)
+            buffer = ll.buffers()
+            if buffer is not None:
+                self.buffers[ll.name] = buffer
+                
+        self.loss_grad_ = jax.grad(self.loss_, has_aux=True)
+        self.loss_grad_eval_ = jax.grad(self.loss_eval_)
+        
+        self.eval_ = False
+        
+    def train(self):
+        self.eval_ = False
+        
+    def eval(self):
+        self.eval_ = True
 
     @partial(jax.jit, static_argnums=(0,))
-    def forward_(self, p, x):
+    def forward_(self, p, b, x):
+        new_b = dict()
         h = x
         for ll in self.layers:
-            h = ll(None if ll.name not in p else p[ll.name], h)
-        return h    
+            out = ll(None if ll.name not in p else p[ll.name], 
+                   None if ll.name not in b else b[ll.name],
+                   h)
+            if type(out) == tuple:
+                new_b[ll.name] = out[1]
+                h = out[0]
+            else:
+                h = out
+                
+        return h, new_b
     
     @partial(jax.jit, static_argnums=(0,))
-    def loss_(self, p, x, y):
-        def dummy(mymodel, params, x, y):
+    def forward_eval_(self, p, b, x):
+        h = x
+        for ll in self.layers:
+            h = ll.forward_eval(None if ll.name not in p else p[ll.name], 
+                                None if ll.name not in b else b[ll.name],
+                                h)
+        return h    
+
+    @partial(jax.jit, static_argnums=(0,))
+    def loss_(self, p, b, x, y):
+        def dummy(mymodel, params, buffers, x, y):
             total_l = 0.
             for ll in mymodel.loss:
-                total_l = total_l + ll[1] * ll[0](params, x, y)
+                total_l = total_l + ll[1] * ll[0](params, buffers, x, y)
             return total_l
-        return jax.vmap(dummy, in_axes=(None,None,0,0))(self, self.params, self.forward_(p, x), y).mean()
+        out, new_buffer = self.forward_(p, b, x)
+        return jax.vmap(dummy, in_axes=(None,None,None,0,0))(self, self.params, self.buffers, out, y).mean(), new_buffer
+
+    @partial(jax.jit, static_argnums=(0,))
+    def loss_eval_(self, p, x, y):
+        def dummy(mymodel, params, buffers, x, y):
+            total_l = 0.
+            for ll in mymodel.loss:
+                total_l = total_l + ll[1] * ll[0](params, buffers, x, y)
+            return total_l
+        return jax.vmap(dummy, in_axes=(None,None,None,0,0))(self, self.params, self.buffers, self.forward_eval(p, b, x), y).mean()
     
     def forward(self, x, single=False):
-        if single:
-            return self.forward_(self.params, x)
-        
-        def dummy(mymodel, params, x):
-            return mymodel.forward_(params, x)
-        return jax.vmap(dummy, in_axes=(None, None, 0))(self, self.params, x)
+        if self.eval_:
+            if single:
+                return self.forward_eval_(self.params, self.buffers, x)
+
+            def dummy(mymodel, params, buffers, x):
+                return mymodel.forward_eval_(params, buffers, x)
+            return jax.vmap(dummy, in_axes=(None, None, None, 0))(self, self.params, self.buffers, x)
+        else:
+            if single:
+                return self.forward_(self.params, self.buffers, x)
+
+            def dummy(mymodel, params, buffers, x):
+                return mymodel.forward_(params, buffers, x)
+            return jax.vmap(dummy, in_axes=(None, None, None, 0))(self, self.params, self.buffers, x)
     
     def loss_grad(self, x, y):
-        return self.loss_(self.params, x, y), self.loss_grad_(self.params, x, y)
+        if self.eval_:
+            return self.loss_eval_(self.params, self.buffers, x, y), self.loss_grad_eval_(self.params, self.buffers, x, y)
+        else:
+            loss, buffer = self.loss_(self.params, self.buffers, x, y)
+            grad = self.loss_grad_(self.params, self.buffers, x, y)[0]
+            
+            apply_dict(lambda g, p: g, buffer, self.buffers)
+            
+            return loss, grad
     
+    def _perturb_dict(self, dict_, rng, scale=1.):
+        for kk, vv in dict_.items():
+            if type(vv) == dict:
+                rng = self._perturb_dict(vv, rng, scale=scale)
+            else:
+                rng, noise = split_and_sample(rng, vv.shape)
+                dict_[kk] = vv + scale * noise
+        return rng
+    
+    def perturb(self, rng, scale=1.):
+        return self._perturb_dict(self.params, rng, scale=scale)
+        

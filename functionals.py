@@ -3,12 +3,12 @@ from jax import numpy as jnp
 
 from utils import flatten_dict, map_dict
 
-@jax.jit
-def cross_entropy(params, p, y):
+# @jax.jit
+def cross_entropy(params, buffers, p, y):
     return -jnp.take(jnp.log(p.squeeze()), y.squeeze())
 
-@jax.jit
-def weight_decay(params, p, y):
+# @jax.jit
+def weight_decay(params, buffers, p, y):
     return (norm(params, p=2.) ** 2.)
 
 @jax.jit

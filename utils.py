@@ -15,6 +15,8 @@ def split_and_sample(key, shape):
 
 def apply_dict(func, from_, to_):
     for kk, vv in to_.items():
+        if kk not in from_:
+            continue
         if type(vv) == dict:
             apply_dict(func, from_[kk], vv)
         else:
@@ -36,5 +38,4 @@ def map_dict(item_func, dict_):
         else:
             dict_[kk] = item_func(vv)
     return dict_
-    
 

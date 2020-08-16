@@ -22,3 +22,11 @@ def clip_norm(params, thr=1., p=2.):
     if pnorm <= thr:
         return params
     return map_dict(lambda x: x / pnorm * thr, params)
+
+@jax.jit
+def relu(x):
+    return jnp.maximum(0., x)
+
+@jax.jit
+def leaky_relu(x, alpha=0.001):
+    return jnp.maximum(0., x) - alpha * jnp.maximum(0., -x)

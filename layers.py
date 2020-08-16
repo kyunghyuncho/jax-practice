@@ -160,6 +160,46 @@ class LayerNorm(Layer):
         var = x.var(self.normalized_dim, keepdims=True)
         return (x - mu) / (jnp.sqrt(var) + 1e-6) * p['gamma'] + p['alpha']    
 
+    
+class BatchNorm(Layer):
+    def __init__(self, dim, coeff=0.95, name=None):
+        super(BatchNorm, self).__init__(name)
+        
+        self.mu = jnp.zeros((dim))
+        self.var = jnp.ones((dim))
+        self.alpha = jnp.zeros((dim))
+        self.gamma = jnp.ones((dim))
+        
+        self.coeff = coeff
+        
+        if name is None:
+            self.name = F'BatchNorm+{rand_string()}'
+            
+    def buffers(self):
+        return dict({'mu': self.mu, 'var': self.var})
+    
+    def params(self):
+        return dict({'alpha': self.alpha, 'gamma': self.gamma})
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def forward(self, p, b, x):
+        x_ = x
+        mu = x_.mean(0, keepdims=True)
+        var = x_.var(0, keepdims=True)
+        x_ = (x_ - mu)/(jnp.sqrt(var) + 1e-6) * p['gamma'] + p['alpha']
+        
+        new_b = dict({'mu': self.coeff * b['mu'] + (1.-self.coeff) * mu, 
+                      'var': self.coeff * b['var'] + (1.-self.coeff) * var})
+        
+        return x_, new_b
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def forward_eval(self, p, b, x):
+        x_ = x
+        x_ = (x_ - b['mu'])/(jnp.sqrt(b['var']) + 1e-6) * p['gamma'] + p['alpha']
+        
+        return x_
+    
 class BatchNorm2d(Layer):
     def __init__(self, dim, coeff=0.95, name=None):
         super(BatchNorm2d, self).__init__(name)

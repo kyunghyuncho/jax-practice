@@ -10,6 +10,7 @@ from jax import lax
 from functools import partial
 
 from utils import rand_string, split_and_sample
+import functionals as F
 
 class Layer:
     def __init__(self, name=None):
@@ -132,11 +133,11 @@ class FakeResConv2d(Layer):
             x = jnp.expand_dims(x, 0)
         h = x
         h = lax.conv(h, p['weight1'], (1,1), self.mode) + p['bias1'][None,:,None,None]
-        h = jnp.maximum(0., h)
+        h = F.relu(h) 
         h = lax.conv(h, p['weight2'], (1,1), self.mode) + p['bias2'][None,:,None,None]
-        h = jnp.maximum(0., h)
+        h = F.relu(h)
         h = lax.conv(h, p['weight3'], (1,1), self.mode) + p['bias3'][None,:,None,None]
-        h = jnp.maximum(0., h)
+        h = F.relu(h)
         h = h + x
         return h
     
@@ -287,7 +288,7 @@ class ReLU(Layer):
             
     @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
-        return jnp.maximum(0., x)
+        return F.relu(x)
     
 class LeakyReLU(Layer):
     def __init__(self, alpha=0.001, name=None):
@@ -300,7 +301,7 @@ class LeakyReLU(Layer):
         
     @partial(jax.jit, static_argnums=(0,))
     def forward(self, p, b, x):
-        return jnp.maximum(0., x) - self.alpha * jnp.maximum(0., -x)
+        return F.leaky_relu(x, alpha=self.alpha)
     
 class Softmax(Layer):
     def __init__(self, name=None):

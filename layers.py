@@ -90,7 +90,8 @@ class Conv2d(Layer):
         if len(x.shape) < len(p['weight'].shape):
             x = jnp.expand_dims(x, 0)
         return lax.conv(x, p['weight'], (1,1), self.mode) + p['bias'][None,:,None,None]
-    
+
+''' this is a fake but simpler residual layer '''
 class FakeResConv2d(Layer):
     def __init__(self, k_height, k_width, d_in, d_out, name=None, mode="SAME"):
         super(FakeResConv2d, self).__init__(name)
@@ -161,7 +162,6 @@ class LayerNorm(Layer):
         var = x.var(self.normalized_dim, keepdims=True)
         return (x - mu) / (jnp.sqrt(var) + 1e-6) * p['gamma'] + p['alpha']    
 
-    
 class BatchNorm(Layer):
     def __init__(self, dim, coeff=0.95, name=None):
         super(BatchNorm, self).__init__(name)
@@ -257,6 +257,7 @@ class MaxPool2d(Layer):
     def forward(self, p, b, x):
         return jnp.transpose(self.maxpool(None, jnp.transpose(x, [0, 2, 3, 1])), [0, 3, 1, 2])
     
+''' max-pool the set of all feature vectors across the 2-d grid. '''
 class SpatialPool2d(Layer):
     def __init__(self, name=None):
         super(SpatialPool2d, self).__init__(name)

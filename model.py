@@ -1,4 +1,5 @@
 import numpy
+import pickle
 
 from jax import random as jrng
 from jax import numpy as jnp
@@ -24,19 +25,10 @@ class Model:
         else:
             self.loss = loss
             
-        self.params = dict()
-        self.buffers = dict()
-
-        for ll in self.layers:
-            rng, pp = ll.init_params(rng)
-            if pp is not None:
-                self.params[ll.name] = pp
-            buffer = ll.buffers()
-            if buffer is not None:
-                self.buffers[ll.name] = buffer
-                
         self.loss_grad_ = jax.grad(self.loss_, has_aux=True)
         self.loss_grad_eval_ = jax.grad(self.loss_eval_)
+        
+        self._init_params(rng)
         
         self.eval_ = False
         
@@ -45,6 +37,47 @@ class Model:
         
     def eval(self):
         self.eval_ = True
+        
+    def _init_params(self, rng=None):
+        self.params = dict()
+        self.buffers = dict()
+
+        for ll in self.layers:
+            if rng is None:
+                pp = ll.params()
+            else:
+                rng, pp = ll.init_params(rng)
+            if pp is not None:
+                self.params[ll.name] = pp
+            buffer = ll.buffers()
+            if buffer is not None:
+                self.buffers[ll.name] = buffer                
+        
+    def save_state(self, f):
+        with open(f, 'wb') as fobj:
+            pickle.dump([ll.name for ll in self.layers], fobj, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(self.params, fobj, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(self.buffers, fobj, protocol=pickle.HIGHEST_PROTOCOL)
+            
+    def load_state(self, f):
+        with open(f, 'rb') as fobj:
+            layer_names = pickle.load(fobj)
+            
+            if len(self.layers) != len(layer_names):
+                print('layers do not match: saved {} current {}'.format(
+                layer_names, [ll.name for ll in self.layers]))
+                return
+            
+            for ll, name in zip(self.layers, layer_names):
+                ll.name = name
+                
+            self._init_params()
+        
+            pload = pickle.load(fobj)
+            apply_dict(lambda f, t: f, pload, self.params)
+            
+            bload = pickle.load(fobj)
+            apply_dict(lambda f, t: f, bload, self.buffers)
 
     @partial(jax.jit, static_argnums=(0,))
     def forward_(self, p, b, x):
